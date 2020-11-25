@@ -31,6 +31,7 @@ def main():
         plot_province(prov)
 
     # Graph features
+    plt.title("COVID-19 in Canada")
     plt.legend(loc='best')
     plt.xlabel("Dates")
     plt.ylabel("Cumulative Cases")
