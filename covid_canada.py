@@ -20,24 +20,27 @@ def main():
 
     # Give choice to update database to save time
     choice  = input("Update database? (y/n) ")
+    if choice.lower() in ["y", "yes"]:
+        update_database(prov_list, data_names)
+
+    line_graph(prov_list)
+
+    pie_chart(prov_list)
+
+    return
+
+
+def update_database(prov_list, data_names):
+    """
+    Updates SQLite3 DB by replacing existing tables or creating them
+    """
     for prov in prov_list:
-        if choice in ['y', "Y", 'yes', 'Yes']:
             # Creates a dataframe for each data name, then creates
             # a table in the database for the dataframe
+            print(f"Updating {prov}")
             for name in data_names:
                 df = data_to_df(name)
                 province_df_to_db(df, prov, name)
-        # Adds province to graph
-        plot_province(prov)
-
-    # Graph features
-    plt.title("COVID-19 in Canada")
-    plt.legend(loc='best')
-    plt.xlabel("Dates")
-    plt.ylabel("Cumulative Cases")
-    plt.gcf().autofmt_xdate() # Handles rotation and date formatting
-    plt.show()
-
     return
 
 
@@ -58,9 +61,10 @@ def province_df_to_db(df, province, csv_name):
     # Filter for rows that match the province
     prov_df = df[df.province == f"{province}"]
     # Convert date column to datetime type so SQL knows its a date
-    prov_df[prov_df.columns[1]] = pd.to_datetime(prov_df[prov_df.columns[1]], format='%d-%m-%Y').dt.date
+    #prov_df[prov_df.columns[1]] = pd.to_datetime(prov_df[prov_df.columns[1]], format='%d-%m-%Y').dt.date
+    prov_df.iloc[:, 1] = pd.to_datetime(prov_df.iloc[:, 1], format='%d-%m-%Y').dt.date
 
-    engine = create_engine("sqlite:///covid_canada.db", echo=True)
+    engine = create_engine("sqlite:///covid_canada.db")
     sqlite_connection = engine.connect()
 
     # Get rid of spaces in table names so they can be queried correctly
@@ -74,12 +78,30 @@ def province_df_to_db(df, province, csv_name):
     return
 
 
-def case_data_for_graph(province):
+def line_graph(prov_list):
+    """
+    Adds province to graph
+    """
+    for prov in prov_list:
+        x, y = data_for_line(prov)
+        plt.plot(x, y, label=prov)
+
+    plt.title("COVID-19 in Canada")
+    plt.legend(loc='best')
+    plt.xlabel("Dates")
+    plt.ylabel("Cumulative Cases")
+    plt.gcf().autofmt_xdate() # Handles rotation and date formatting
+    plt.show()
+    plt.clf()
+    return
+
+
+def data_for_line(province):
     """
     Queries DB for date and case data for a province to generate compatible
     graph data
     """
-    engine = create_engine("sqlite:///covid_canada.db", echo=True)
+    engine = create_engine("sqlite:///covid_canada.db")
     sqlite_connection = engine.connect()
 
     # Ensure province matches table name format
@@ -103,12 +125,58 @@ def case_data_for_graph(province):
     return x1, y
 
 
-def plot_province(province):
+def pie_chart(prov_list):
     """
-    Adds province to graph
+    Plots all provinces on a pie chart
     """
-    x, y = case_data_for_graph(province)
-    plt.plot(x, y, label=province)
+    # Labels for chart, same order as prov_list
+    prov_abbreivations = [
+        "AB", "BC", "MB", "NB",
+        "NL", "NS", "ON", "PEI",
+        "QC", "SK", "NWT", "NU",
+        "YK"
+    ]
+
+    # List of number of cumulative cases for each province, in the order of prov_list
+    values = []
+    for prov in prov_list:
+        values.append(data_for_pie(prov))
+
+    # Plot pie chart based of values
+    wedges, texts = plt.pie(values)
+
+    # Gets percentages of values and sorts them (preserving province) in
+    # descending order by province case percentage for the legend
+    percents = [num/(sum(values))*100 for num in values]
+    legend_labels = [f'{prov} - {percent:.2f} %' for prov, percent in zip(prov_abbreivations, percents)]
+    wedges, legend_labels = zip(*sorted(zip(wedges, legend_labels), key=lambda x: float(x[-1].split()[-2]), reverse=True))
+
+    # Graph features
+    plt.legend(wedges, legend_labels, title='Provinces', loc='best')
+    plt.title(f"Percentages of COVID-19 Cases in Canada\nTotal Cases: {sum(values)}")
+    plt.show()
+    plt.cla()
     return
 
-main()
+
+def data_for_pie(province):
+    """
+    Connects to database, queries for cumulative cases for each province
+    """
+    engine = create_engine("sqlite:///covid_canada.db")
+    sqlite_connection = engine.connect()
+    province = province.replace(" ", "_")
+
+    data = sqlite_connection.execute(f"""
+        SELECT cumulative_cases FROM cases_{province}
+        ORDER BY cumulative_cases DESC
+        LIMIT 1
+        """)
+
+    data1 = data.fetchone()
+    sqlite_connection.close()
+    return data1[0]
+
+
+if __name__ == '__main__':
+    main()

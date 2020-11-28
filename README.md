@@ -12,7 +12,9 @@ Each table for each province shows different types of data:
     recovered: daily recoveries, cumulative recoveries
     testing: daily testing, cumulative testing, testing info
 
-I chose to keep the tables in this project separate to keep the data uncluttered.
+I chose to keep the tables in this project separate to keep the data uncluttered. The end goal for this project
+was to create visualizations of the data that are accurate and easy to read. Becuase of the large database, there is plenty
+of information available for all kinds of representations.
 
 Files:
 
