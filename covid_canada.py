@@ -27,6 +27,8 @@ def main():
 
     pie_chart(prov_list)
 
+    bar_graph(prov_list)
+
     return
 
 
@@ -153,7 +155,7 @@ def pie_chart(prov_list):
 
     # Graph features
     plt.legend(wedges, legend_labels, title='Provinces', loc='best')
-    plt.title(f"Percentages of COVID-19 Cases in Canada\nTotal Cases: {sum(values)}")
+    plt.title(f"Percentages of Cumulative COVID-19 Cases in Canada\nTotal Cases: {sum(values)}")
     plt.show()
     plt.cla()
     return
@@ -169,7 +171,50 @@ def data_for_pie(province):
 
     data = sqlite_connection.execute(f"""
         SELECT cumulative_cases FROM cases_{province}
-        ORDER BY cumulative_cases DESC
+        ORDER BY date_report DESC
+        LIMIT 1
+        """)
+
+    data1 = data.fetchone()
+    sqlite_connection.close()
+    return data1[0]
+
+
+def bar_graph(prov_list):
+    """
+    Plots a bar graph comparing current cases in each province
+    """
+    prov_abbreivations = [
+        "AB", "BC", "MB", "NB",
+        "NL", "NS", "ON", "PEI",
+        "QC", "SK", "NWT", "NU",
+        "YK"
+    ]
+
+    values = []
+    for prov in prov_list:
+        values.append(data_for_bar(prov))
+
+    plt.bar(prov_abbreivations, values)
+    plt.ylabel("Active Cases")
+    plt.xlabel("Province")
+    plt.title("Current Active Cases")
+    plt.show()
+    plt.cla()
+    return
+
+
+def data_for_bar(province):
+    """
+    Queries database for active cases data and returns it for a province
+    """
+    engine = create_engine("sqlite:///covid_canada.db")
+    sqlite_connection = engine.connect()
+    province = province.replace(" ", "_")
+
+    data = sqlite_connection.execute(f"""
+        SELECT active_cases FROM active_{province}
+        ORDER BY date_active DESC
         LIMIT 1
         """)
 
