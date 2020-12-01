@@ -84,10 +84,12 @@ def line_graph(prov_list):
     """
     Adds province to graph
     """
+    # Get and plot each provinces data
     for prov in prov_list:
         x, y = data_for_line(prov)
         plt.plot(x, y, label=prov)
 
+    # Graph features
     plt.title("COVID-19 in Canada")
     plt.legend(loc='best')
     plt.xlabel("Dates")
@@ -191,10 +193,12 @@ def bar_graph(prov_list):
         "YK"
     ]
 
+    # Data values for each province
     values = []
     for prov in prov_list:
         values.append(data_for_bar(prov))
 
+    # Graph features
     plt.bar(prov_abbreivations, values)
     plt.ylabel("Active Cases")
     plt.xlabel("Province")
@@ -212,6 +216,7 @@ def data_for_bar(province):
     sqlite_connection = engine.connect()
     province = province.replace(" ", "_")
 
+    # Get DB data
     data = sqlite_connection.execute(f"""
         SELECT active_cases FROM active_{province}
         ORDER BY date_active DESC
