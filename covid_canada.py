@@ -3,7 +3,6 @@
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 from sqlalchemy import create_engine
 
 
@@ -23,11 +22,13 @@ def main():
     if choice.lower() in ["y", "yes"]:
         update_database(prov_list, data_names)
 
-    line_graph(prov_list)
+    line_graph_cumulative(prov_list)
 
     pie_chart(prov_list)
 
     bar_graph(prov_list)
+
+    line_graph_active(prov_list)
 
     return
 
@@ -61,7 +62,8 @@ def province_df_to_db(df, province, csv_name):
     Creates a table in the database for the province called
     """
     # Filter for rows that match the province
-    prov_df = df[df.province == f"{province}"]
+    #prov_df = df[df.province == f"{province}"]
+    prov_df = df.loc[df.loc[:, "province"] == f"{province}", :].copy()
     # Convert date column to datetime type so SQL knows its a date
     #prov_df[prov_df.columns[1]] = pd.to_datetime(prov_df[prov_df.columns[1]], format='%d-%m-%Y').dt.date
     prov_df.iloc[:, 1] = pd.to_datetime(prov_df.iloc[:, 1], format='%d-%m-%Y').dt.date
@@ -80,17 +82,17 @@ def province_df_to_db(df, province, csv_name):
     return
 
 
-def line_graph(prov_list):
+def line_graph_cumulative(prov_list):
     """
-    Adds province to graph
+    Adds province to graph of cumulative cases over time
     """
     # Get and plot each provinces data
     for prov in prov_list:
-        x, y = data_for_line(prov)
+        x, y = data_for_line_cumulative(prov)
         plt.plot(x, y, label=prov)
 
     # Graph features
-    plt.title("COVID-19 in Canada")
+    plt.title("Cumulative Cases Over Time of COVID-19 in Canada")
     plt.legend(loc='best')
     plt.xlabel("Dates")
     plt.ylabel("Cumulative Cases")
@@ -100,7 +102,7 @@ def line_graph(prov_list):
     return
 
 
-def data_for_line(province):
+def data_for_line_cumulative(province):
     """
     Queries DB for date and case data for a province to generate compatible
     graph data
@@ -116,17 +118,17 @@ def data_for_line(province):
         FROM cases_{province}
     """)
     # data is a list with an item = (date, cumulative_case) tuple
-    x0 = []
-    y = []
+    dates0 = []
+    cases = []
     for item in data:
-        x0.append(item[0])
-        y.append(item[1])
+        dates0.append(item[0])
+        cases.append(item[1])
 
     # Convert to datetime as matplotlib will handle datetime on its own
-    x1 = pd.to_datetime(x0, format='%Y-%m-%d')
+    dates1 = pd.to_datetime(dates0, format='%Y-%m-%d')
     sqlite_connection.close()
 
-    return x1, y
+    return dates1, cases
 
 
 def pie_chart(prov_list):
@@ -157,7 +159,7 @@ def pie_chart(prov_list):
 
     # Graph features
     plt.legend(wedges, legend_labels, title='Provinces', loc='best')
-    plt.title(f"Percentages of Cumulative COVID-19 Cases in Canada\nTotal Cases: {sum(values)}")
+    plt.title(f"Percentages of Cumulative COVID-19 Cases in Canada\nTotal Cumulative Cases: {sum(values)}")
     plt.show()
     plt.cla()
     return
@@ -202,7 +204,7 @@ def bar_graph(prov_list):
     plt.bar(prov_abbreivations, values)
     plt.ylabel("Active Cases")
     plt.xlabel("Province")
-    plt.title("Current Active Cases")
+    plt.title(f"Current Active Cases of COVID-19 in Canada: {sum(values)}")
     plt.show()
     plt.cla()
     return
@@ -227,6 +229,55 @@ def data_for_bar(province):
     sqlite_connection.close()
     return data1[0]
 
+
+def line_graph_active(prov_list):
+    """
+    Adds province to graph of active cases over time
+    """
+    current_active = []
+    # Get and plot each provinces data
+    for prov in prov_list:
+        x, y = data_for_line_active(prov)
+        current_active.append(y[-1])
+        plt.plot(x, y, label=prov)
+
+    # Graph features
+    plt.title(f"Active Cases Over Time of COVID-19 in Canada\nCurrent Active Cases: {sum(current_active)}")
+    plt.legend(loc='best')
+    plt.xlabel("Dates")
+    plt.ylabel("Active Cases")
+    plt.gcf().autofmt_xdate() # Handles rotation and date formatting
+    plt.show()
+    plt.clf()
+    return
+
+def data_for_line_active(province):
+    """
+    Queries DB for date and case data for a province to generate compatible
+    graph data
+    """
+    engine = create_engine("sqlite:///covid_canada.db")
+    sqlite_connection = engine.connect()
+
+    # Ensure province matches table name format
+    province = province.replace(" ", "_")
+    # Get data from DB through query
+    data = sqlite_connection.execute(f"""
+        SELECT date_active, active_cases
+        FROM active_{province}
+    """)
+    # data is a list with an item = (date, cumulative_case) tuple
+    dates0 = []
+    cases = []
+    for item in data:
+        dates0.append(item[0])
+        cases.append(item[1])
+
+    # Convert to datetime as matplotlib will handle datetime on its own
+    dates1 = pd.to_datetime(dates0, format='%Y-%m-%d')
+    sqlite_connection.close()
+
+    return dates1, cases
 
 if __name__ == '__main__':
     main()
