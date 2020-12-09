@@ -22,13 +22,15 @@ def main():
     if choice.lower() in ["y", "yes"]:
         update_database(prov_list, data_names)
 
-    line_graph_cumulative(prov_list)
+    recent_date = get_last_updated()
 
-    pie_chart(prov_list)
+    line_graph_cumulative(prov_list, recent_date)
 
-    bar_graph(prov_list)
+    pie_chart(prov_list, recent_date)
 
-    line_graph_active(prov_list)
+    bar_graph(prov_list, recent_date)
+
+    line_graph_active(prov_list, recent_date)
 
     return
 
@@ -82,19 +84,38 @@ def province_df_to_db(df, province, csv_name):
     return
 
 
-def line_graph_cumulative(prov_list):
+def get_last_updated():
+    """
+    Gets the most recent date the database was updated
+    """
+    engine = create_engine("sqlite:///covid_canada.db")
+    sqlite_connection = engine.connect()
+
+    data = sqlite_connection.execute(f"""
+        SELECT date_report
+        FROM cases_BC
+        ORDER BY date_report DESC
+        LIMIT 1
+    """)
+    date = pd.to_datetime(data.fetchone()[0], format='%Y-%m-%d').date()
+    return date
+
+
+def line_graph_cumulative(prov_list, recent_date):
     """
     Adds province to graph of cumulative cases over time
     """
     # Get and plot each provinces data
+    current_cumulative = []
     for prov in prov_list:
         x, y = data_for_line_cumulative(prov)
+        current_cumulative.append(y[-1])
         plt.plot(x, y, label=prov)
 
     # Graph features
-    plt.title("Cumulative Cases Over Time of COVID-19 in Canada")
+    plt.title(f"Cumulative Cases Over Time of COVID-19 in Canada\nCurrent Cumulative Cases: {sum(current_cumulative):,}")
     plt.legend(loc='best')
-    plt.xlabel("Dates")
+    plt.xlabel(f"Dates\n\nDate of Data: {recent_date}")
     plt.ylabel("Cumulative Cases")
     plt.gcf().autofmt_xdate() # Handles rotation and date formatting
     plt.show()
@@ -131,7 +152,7 @@ def data_for_line_cumulative(province):
     return dates1, cases
 
 
-def pie_chart(prov_list):
+def pie_chart(prov_list, recent_date):
     """
     Plots all provinces on a pie chart
     """
@@ -157,9 +178,11 @@ def pie_chart(prov_list):
     legend_labels = [f'{prov} - {percent:.2f} %' for prov, percent in zip(prov_abbreivations, percents)]
     wedges, legend_labels = zip(*sorted(zip(wedges, legend_labels), key=lambda x: float(x[-1].split()[-2]), reverse=True))
 
+    date_text = f"Date of Data: {recent_date}"
     # Graph features
     plt.legend(wedges, legend_labels, title='Provinces', loc='best')
-    plt.title(f"Percentages of Cumulative COVID-19 Cases in Canada\nTotal Cumulative Cases: {sum(values)}")
+    plt.title(f"Percentages of Cumulative COVID-19 Cases in Canada\nTotal Cumulative Cases: {sum(values):,}")
+    plt.figtext(0.4, 0.10, date_text)
     plt.show()
     plt.cla()
     return
@@ -184,7 +207,7 @@ def data_for_pie(province):
     return data1[0]
 
 
-def bar_graph(prov_list):
+def bar_graph(prov_list, recent_date):
     """
     Plots a bar graph comparing current cases in each province
     """
@@ -203,8 +226,8 @@ def bar_graph(prov_list):
     # Graph features
     plt.bar(prov_abbreivations, values)
     plt.ylabel("Active Cases")
-    plt.xlabel("Province")
-    plt.title(f"Current Active Cases of COVID-19 in Canada: {sum(values)}")
+    plt.xlabel(f"Province\n\nDate of Data: {recent_date}")
+    plt.title(f"Current Active Cases of COVID-19 in Canada: {sum(values):,}")
     plt.show()
     plt.cla()
     return
@@ -225,12 +248,12 @@ def data_for_bar(province):
         LIMIT 1
         """)
 
-    data1 = data.fetchone()
+    cases = data.fetchone()
     sqlite_connection.close()
-    return data1[0]
+    return cases[0]
 
 
-def line_graph_active(prov_list):
+def line_graph_active(prov_list, recent_date):
     """
     Adds province to graph of active cases over time
     """
@@ -241,15 +264,17 @@ def line_graph_active(prov_list):
         current_active.append(y[-1])
         plt.plot(x, y, label=prov)
 
+    most_recent = pd.to_datetime(x[-1], format='%Y-%m-%d').date()
     # Graph features
-    plt.title(f"Active Cases Over Time of COVID-19 in Canada\nCurrent Active Cases: {sum(current_active)}")
+    plt.title(f"Active Cases Over Time of COVID-19 in Canada\nCurrent Active Cases: {sum(current_active):,}")
     plt.legend(loc='best')
-    plt.xlabel("Dates")
+    plt.xlabel(f"Dates\n\nDate of Data: {most_recent}")
     plt.ylabel("Active Cases")
     plt.gcf().autofmt_xdate() # Handles rotation and date formatting
     plt.show()
     plt.clf()
     return
+
 
 def data_for_line_active(province):
     """
@@ -278,6 +303,7 @@ def data_for_line_active(province):
     sqlite_connection.close()
 
     return dates1, cases
+
 
 if __name__ == '__main__':
     main()
