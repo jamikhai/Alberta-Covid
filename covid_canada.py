@@ -1,6 +1,8 @@
 # Author: Justin Mikhail
-# Special thanks to opencovid.ca and https://github.com/ishaberry/Covid19Canada for data
+# Special thanks to: opencovid.ca and https://github.com/ishaberry/Covid19Canada for COVID data,
+# Stats Canada for population data: https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1710000901
 import sqlite3
+from graphs import *
 import pandas as pd
 import matplotlib.pyplot as plt
 from sqlalchemy import create_engine
@@ -22,15 +24,19 @@ def main():
     if choice.lower() in ["y", "yes"]:
         update_database(prov_list, data_names)
 
+    province_populations = read_province_population()
+
     recent_date = get_last_updated()
 
-    line_graph_cumulative(prov_list, recent_date)
+    #line_cumulative(prov_list, recent_date)
 
-    pie_chart(prov_list, recent_date)
+    #pie_chart(prov_list, recent_date)
 
-    bar_graph(prov_list, recent_date)
+    bar_active_per_hundred_thou(prov_list, recent_date, province_populations)
 
-    line_graph_active(prov_list, recent_date)
+    bar_province_fatality(prov_list, recent_date, province_populations)
+
+    line_active(prov_list, recent_date)
 
     return
 
@@ -101,209 +107,24 @@ def get_last_updated():
     return date
 
 
-def line_graph_cumulative(prov_list, recent_date):
+def read_province_population():
     """
-    Adds province to graph of cumulative cases over time
+    Reads csv and returns a dictionary of region: population pairs
     """
-    # Get and plot each provinces data
-    current_cumulative = []
-    for prov in prov_list:
-        x, y = data_for_line_cumulative(prov)
-        current_cumulative.append(y[-1])
-        plt.plot(x, y, label=prov)
+    pop_df = pd.read_csv("canada_populations.csv")
+    populations = {}
+    for i in range(len(pop_df)):
+        region = pop_df["GEO"][i]
+        number = int(pop_df["VALUE"][i])
+        populations[region] = number
 
-    # Graph features
-    plt.title(f"Cumulative Cases Over Time of COVID-19 in Canada\nCurrent Cumulative Cases: {sum(current_cumulative):,}")
-    plt.legend(loc='best')
-    plt.xlabel(f"Dates\n\nDate of Data: {recent_date}")
-    plt.ylabel("Cumulative Cases")
-    plt.gcf().autofmt_xdate() # Handles rotation and date formatting
-    plt.show()
-    plt.clf()
-    return
+    # Update keys so they are compatible with prov_list
+    populations["BC"] = populations.pop("British Columbia")
+    populations["NL"] = populations.pop("Newfoundland and Labrador")
+    populations["PEI"] = populations.pop("Prince Edward Island")
+    populations["NWT"] = populations.pop("Northwest Territories")
 
-
-def data_for_line_cumulative(province):
-    """
-    Queries DB for date and case data for a province to generate compatible
-    graph data
-    """
-    engine = create_engine("sqlite:///covid_canada.db")
-    sqlite_connection = engine.connect()
-
-    # Ensure province matches table name format
-    province = province.replace(" ", "_")
-    # Get data from DB through query
-    data = sqlite_connection.execute(f"""
-        SELECT date_report, cumulative_cases
-        FROM cases_{province}
-    """)
-    # data is a list with an item = (date, cumulative_case) tuple
-    dates0 = []
-    cases = []
-    for item in data:
-        dates0.append(item[0])
-        cases.append(item[1])
-
-    # Convert to datetime as matplotlib will handle datetime on its own
-    dates1 = pd.to_datetime(dates0, format='%Y-%m-%d')
-    sqlite_connection.close()
-
-    return dates1, cases
-
-
-def pie_chart(prov_list, recent_date):
-    """
-    Plots all provinces on a pie chart
-    """
-    # Labels for chart, same order as prov_list
-    prov_abbreivations = [
-        "AB", "BC", "MB", "NB",
-        "NL", "NS", "ON", "PEI",
-        "QC", "SK", "NWT", "NU",
-        "YK"
-    ]
-
-    # List of number of cumulative cases for each province, in the order of prov_list
-    values = []
-    for prov in prov_list:
-        values.append(data_for_pie(prov))
-
-    # Plot pie chart based of values
-    wedges, texts = plt.pie(values)
-
-    # Gets percentages of values and sorts them (preserving province) in
-    # descending order by province case percentage for the legend
-    percents = [num/(sum(values))*100 for num in values]
-    legend_labels = [f'{prov} - {percent:.2f} %' for prov, percent in zip(prov_abbreivations, percents)]
-    wedges, legend_labels = zip(*sorted(zip(wedges, legend_labels), key=lambda x: float(x[-1].split()[-2]), reverse=True))
-
-    date_text = f"Date of Data: {recent_date}"
-    # Graph features
-    plt.legend(wedges, legend_labels, title='Provinces', loc='best')
-    plt.title(f"Percentages of Cumulative COVID-19 Cases in Canada\nTotal Cumulative Cases: {sum(values):,}")
-    plt.figtext(0.4, 0.10, date_text)
-    plt.show()
-    plt.cla()
-    return
-
-
-def data_for_pie(province):
-    """
-    Connects to database, queries for cumulative cases for each province
-    """
-    engine = create_engine("sqlite:///covid_canada.db")
-    sqlite_connection = engine.connect()
-    province = province.replace(" ", "_")
-
-    data = sqlite_connection.execute(f"""
-        SELECT cumulative_cases FROM cases_{province}
-        ORDER BY date_report DESC
-        LIMIT 1
-        """)
-
-    data1 = data.fetchone()
-    sqlite_connection.close()
-    return data1[0]
-
-
-def bar_graph(prov_list, recent_date):
-    """
-    Plots a bar graph comparing current cases in each province
-    """
-    prov_abbreivations = [
-        "AB", "BC", "MB", "NB",
-        "NL", "NS", "ON", "PEI",
-        "QC", "SK", "NWT", "NU",
-        "YK"
-    ]
-
-    # Data values for each province
-    values = []
-    for prov in prov_list:
-        values.append(data_for_bar(prov))
-
-    # Graph features
-    plt.bar(prov_abbreivations, values)
-    plt.ylabel("Active Cases")
-    plt.xlabel(f"Province\n\nDate of Data: {recent_date}")
-    plt.title(f"Current Active Cases of COVID-19 in Canada: {sum(values):,}")
-    plt.show()
-    plt.cla()
-    return
-
-
-def data_for_bar(province):
-    """
-    Queries database for active cases data and returns it for a province
-    """
-    engine = create_engine("sqlite:///covid_canada.db")
-    sqlite_connection = engine.connect()
-    province = province.replace(" ", "_")
-
-    # Get DB data
-    data = sqlite_connection.execute(f"""
-        SELECT active_cases FROM active_{province}
-        ORDER BY date_active DESC
-        LIMIT 1
-        """)
-
-    cases = data.fetchone()
-    sqlite_connection.close()
-    return cases[0]
-
-
-def line_graph_active(prov_list, recent_date):
-    """
-    Adds province to graph of active cases over time
-    """
-    current_active = []
-    # Get and plot each provinces data
-    for prov in prov_list:
-        x, y = data_for_line_active(prov)
-        current_active.append(y[-1])
-        plt.plot(x, y, label=prov)
-
-    most_recent = pd.to_datetime(x[-1], format='%Y-%m-%d').date()
-    # Graph features
-    plt.title(f"Active Cases Over Time of COVID-19 in Canada\nCurrent Active Cases: {sum(current_active):,}")
-    plt.legend(loc='best')
-    plt.xlabel(f"Dates\n\nDate of Data: {most_recent}")
-    plt.ylabel("Active Cases")
-    plt.gcf().autofmt_xdate() # Handles rotation and date formatting
-    plt.show()
-    plt.clf()
-    return
-
-
-def data_for_line_active(province):
-    """
-    Queries DB for date and case data for a province to generate compatible
-    graph data
-    """
-    engine = create_engine("sqlite:///covid_canada.db")
-    sqlite_connection = engine.connect()
-
-    # Ensure province matches table name format
-    province = province.replace(" ", "_")
-    # Get data from DB through query
-    data = sqlite_connection.execute(f"""
-        SELECT date_active, active_cases
-        FROM active_{province}
-    """)
-    # data is a list with an item = (date, cumulative_case) tuple
-    dates0 = []
-    cases = []
-    for item in data:
-        dates0.append(item[0])
-        cases.append(item[1])
-
-    # Convert to datetime as matplotlib will handle datetime on its own
-    dates1 = pd.to_datetime(dates0, format='%Y-%m-%d')
-    sqlite_connection.close()
-
-    return dates1, cases
-
+    return populations
 
 if __name__ == '__main__':
     main()

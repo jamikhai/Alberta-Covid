@@ -13,17 +13,19 @@ Each table for each province shows different types of data:
     testing: daily testing, cumulative testing, testing info
 
 I chose to keep the tables in this project separate to keep the data uncluttered. The end goal for this project
-was to create visualizations of the data that are accurate and easy to read. Becuase of the large database, there is plenty
-of information available for all kinds of representations.
+was to create visualizations of conclusions pulled from data that are accurate and easy to read. Because of the large database, there is plenty of information available for all kinds of representations and inferences.
 
 Files:
 
-    covid_canada.py -> python code
-    covid_canada.db -> sample database
+    covid_canada.py -> main
+    graphs.py -> functions for graphing and pulling data
+    covid_canada.db - > sample database
 
 Run Instructions (Command Line):
 
     python3 covid_canada.py
+
+    If running for the first time (or first time that day), select 'y' to update database (covid_canada.db). If not downloaded, it will create one
 
 Libraries:
 
@@ -35,3 +37,4 @@ Libraries:
 Data Sources:
 
     https://github.com/ishaberry/Covid19Canada
+    https://www150.statcan.gc.ca/t1/tbl1/en/tv.action?pid=1710000901
