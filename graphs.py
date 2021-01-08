@@ -236,7 +236,6 @@ def bar_province_fatality(prov_list, recent_date, populations):
     for deaths, cases in values:
         fatalities.append(deaths / cases * 100)
 
-    print(fatalities)
     # Graph features
     plt.bar(prov_abbreivations, fatalities)
     plt.ylabel("Fatality Rate (%)")
@@ -265,6 +264,5 @@ def data_for_bar_province_fatality(province):
         """)
 
     data = list(data)[0]
-    print(data[0])
     sqlite_connection.close()
     return data

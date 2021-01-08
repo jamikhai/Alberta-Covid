@@ -111,7 +111,9 @@ def read_province_population():
     """
     Reads csv and returns a dictionary of region: population pairs
     """
+    # Read in population data into a dataframe
     pop_df = pd.read_csv("canada_populations.csv")
+    # Create dictionary of province: population (key: value)
     populations = {}
     for i in range(len(pop_df)):
         region = pop_df["GEO"][i]
